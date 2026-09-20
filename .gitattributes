@@ -1,0 +1,17 @@
+* text=auto eol=lf
+*.{cmd,[cC][mM][dD]} text eol=crlf
+*.{bat,[bB][aA][tT]} text eol=crlf
+*.{ahk,[aA][hH][kK]} text eol=crlf
+*.ps1 eol=lf
+*.gif binary
+*.jpeg binary
+*.png binary
+*.gz binary
+*.jar binary
+
+.lib/** linguist-vendored
+.mise/** linguist-vendored
+mise linguist-vendored
+mise.cmd linguist-vendored
+task linguist-vendored
+task.cmd linguist-vendored

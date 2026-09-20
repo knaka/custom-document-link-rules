@@ -1,0 +1,17 @@
+# Directive · koalaman/shellcheck Wiki https://github.com/koalaman/shellcheck/wiki/Directive#external-sources
+external-sources=false
+
+# ShellCheck: SC1091 – Not following: (error message here) https://www.shellcheck.net/wiki/SC1091
+disable=SC1091
+
+# ShellCheck: SC2119 – Use `foo "$@"` if function's `$1` should mean script's `$1`. https://www.shellcheck.net/wiki/SC2119
+disable=SC2119
+
+# ShellCheck: SC2120 – foo references arguments, but none are ever passed. https://www.shellcheck.net/wiki/SC2120
+disable=SC2120
+
+# ShellCheck: SC2329 – This function is never invoked. Check usage (or ignored if invoked indirectly). https://www.shellcheck.net/wiki/SC2329
+disable=SC2329
+
+# ShellCheck: SC3043 – In POSIX sh, `local` is undefined. https://www.shellcheck.net/wiki/SC3043
+disable=SC3043

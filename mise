@@ -1,0 +1,61 @@
+#!/usr/bin/env sh
+set -- _83da9bf "$@"; eval "shift; \${$1-false} || ! $1=true" && return || :
+
+# Downloads and executes Mise in a project where contributors may not have mise installed.
+# — Home | mise-en-place https://mise.jdx.dev/
+
+# Mise - Home | mise-en-place https://mise.jdx.dev/
+mise_ver_e8ccfbb=2026.8.6
+
+should_exec_9bf84a8=false
+
+mise() {
+  local os
+  local exe_ext=
+  if test -d \\
+  then
+    os=windows
+    exe_ext=.exe
+  elif test -r /System/Library/CoreServices/SystemVersion.plist
+  then
+    os=macos
+  elif test -d /proc -a -d /sys/kernel
+  then
+    os=linux
+  else
+    return 1
+  fi
+  local cache_dir_path="${XDG_CACHE_HOME-$HOME/.cache}"/mise
+  local cmd_base="mise-$mise_ver_e8ccfbb$exe_ext"
+  local cmd_path="$cache_dir_path/$cmd_base"
+  if ! command -v "$cmd_path" >/dev/null 2>&1
+  then
+    mkdir -p "$cache_dir_path"
+    cd "$cache_dir_path" || return 1
+    local arch
+    case "$(uname -m)" in
+      (x86_64) arch=x64;;
+      (arm64|aarch64) arch=arm64;;
+      (*) return 1;;
+    esac
+    local exe_base="mise-v$mise_ver_e8ccfbb-$os-$arch$exe_ext"
+    local exe_url="https://github.com/jdx/mise/releases/download/v$mise_ver_e8ccfbb/$exe_base"
+    echo "Downloading $exe_url" >&2
+    curl --fail --location "$exe_url" -o "$exe_base" || return 1
+    local sum_url="https://github.com/jdx/mise/releases/download/v$mise_ver_e8ccfbb/SHASUMS256.txt"
+    echo "Downloading $sum_url" >&2
+    curl --fail --location "$sum_url" -o - | grep "/$exe_base$" | sha256sum -c - >&2
+    mv -f "$exe_base" "$cmd_base"
+    chmod +x "$cmd_path"
+    cd "$OLDPWD" || exit 1
+  fi
+  "$should_exec_9bf84a8" && exec "$cmd_path" "$@"
+  command "$cmd_path" "$@"
+}
+
+if eval 'test "$0" = "${BASH_SOURCE-}"' || case "${0##*[/\\]}." in (mise.*) ;; (*) false;; esac # shpp:main_guard
+then
+  set -o nounset -o errexit
+  should_exec_9bf84a8=true
+  mise "$@"
+fi

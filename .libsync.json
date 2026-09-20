@@ -1,0 +1,25 @@
+{
+  "libraries": [
+    {
+      "name": "lib-sh",
+      "repo": "git@github.com:knaka/src.git",
+      "paths": [
+        ".shellcheckrc",
+        ".claude/skills/mise",
+        ".claude/skills/shell-script-grammar",
+        ".lib/build.sh",
+        ".lib/cui.sh",
+        ".lib/ip.sh",
+        ".lib/utils.sh",
+        ".lib/worker.sh",
+        ".mise/tasks/tasks/expand.sh",
+        "mise.cmd",
+        "mise"
+      ],
+      "dest": ".",
+      "branch": "main",
+      "commit": "ef4654642911af561745f7fd658c72819e578c86",
+      "fetched_at": "2026-09-20T10:12:29+0900"
+    }
+  ]
+}
