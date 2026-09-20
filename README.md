@@ -6,6 +6,10 @@ There is no built-in rule for any language. Everything the extension does is dri
 
 Inspired by [HTML Related Links](https://marketplace.visualstudio.com/items?itemName=rioj7.html-related-links), but scoped down to just the configurable `DocumentLinkProvider` — no tree view.
 
+## Installation
+
+Install [Custom Document Link Rules](https://marketplace.visualstudio.com/items?itemName=ayutaya.custom-document-link-rules) from the Visual Studio Marketplace, or search for "Custom Document Link Rules" in the Extensions view.
+
 ## How it works
 
 The extension reads `custom-document-link-rules.rules` and registers a `DocumentLinkProvider` for whichever `languageId`s the rules actually need (or a single provider for every file, if any rule applies to every language — see [`languageIds`](#languageids)). The provider list is rebuilt whenever the setting changes, so no reload is needed.
