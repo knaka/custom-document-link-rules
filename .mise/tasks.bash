@@ -17,3 +17,15 @@ task_init() {
   # Your First Extension | Visual Studio Code Extension API https://code.visualstudio.com/api/get-started/your-first-extension
   npx --package=yo --package=generator-code -- yo code .
 }
+
+task_login() {
+  vsce login ayutaya
+}
+
+task_whoami() {
+  vsce ls-publishers
+}
+
+task_publish() {
+  vsce publish
+}

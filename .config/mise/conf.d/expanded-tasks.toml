@@ -23,3 +23,39 @@ popd >/dev/null || exit 1
 set -o nounset -o errexit -o pipefail
 TAIL_DEPTH=1 task_init "$@"
 '''
+
+[tasks."login"]
+description=''''''
+run='''
+#!/usr/bin/env bash
+# .mise/tasks.bash:task_login
+pushd "$MISE_PROJECT_ROOT"/".mise" >/dev/null || exit 1
+. ./"tasks.bash"
+popd >/dev/null || exit 1
+set -o nounset -o errexit -o pipefail
+TAIL_DEPTH=1 task_login "$@"
+'''
+
+[tasks."whoami"]
+description=''''''
+run='''
+#!/usr/bin/env bash
+# .mise/tasks.bash:task_whoami
+pushd "$MISE_PROJECT_ROOT"/".mise" >/dev/null || exit 1
+. ./"tasks.bash"
+popd >/dev/null || exit 1
+set -o nounset -o errexit -o pipefail
+TAIL_DEPTH=1 task_whoami "$@"
+'''
+
+[tasks."publish"]
+description=''''''
+run='''
+#!/usr/bin/env bash
+# .mise/tasks.bash:task_publish
+pushd "$MISE_PROJECT_ROOT"/".mise" >/dev/null || exit 1
+. ./"tasks.bash"
+popd >/dev/null || exit 1
+set -o nounset -o errexit -o pipefail
+TAIL_DEPTH=1 task_publish "$@"
+'''
