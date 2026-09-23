@@ -58,7 +58,6 @@ The first entry (joined with the workspace folder) whose path is a prefix of the
 * `${workspaceFolder}`, `${workspaceFolderBasename}`, `${fileWorkspaceFolder}`, `${relativeFile}`, `${relativeFileDirname}`
 * `${env:NAME}` — an environment variable
 * `${workspaceFolder:NAME}` — a specific workspace folder in a multi-root workspace, by name, `[index]`, or a path suffix
-* `${command:name}` — the result of running a command (**`openFile` only** — rule matching happens synchronously on every keystroke, so it can't await a command)
 
 ### The `position` variable
 
