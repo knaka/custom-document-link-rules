@@ -30,8 +30,6 @@ An **array** of rules. A rule is either a plain string — a shorthand for `{ "p
 | `searchText` | string | — | Literal text to search for in the target file, used to jump to it instead of `lineNr`/`charPos`. Takes precedence over `lineNr`/`charPos` when set. |
 | `searchTextIsExpression` | boolean | `false` | Evaluate `searchText` as a JS expression. See [below](#searchTextIsExpression). |
 | `rangeGroup` | string | derived from `filePath` | Which part of the match becomes the clickable range, as `$n`. Defaults to the capture group used in `filePath` (or the whole match if `lineNr` is set). |
-| `documentLink` | boolean | `true` | Create a Document Link for this match. See [below](#documentLink-false) for why you might turn this off. |
-| `allowCurrentFile` | boolean | `false` | Allow a match whose resolved target is the current file. |
 | `languageIds` | array of string, or `null` | `null` | Restrict this rule to these [`languageId`](https://code.visualstudio.com/docs/languages/overview#_language-id)s. `null` (or omitting the property) applies the rule to every language. |
 
 Because different regexes can match overlapping text, list the rule that matches the *largest* range first — once a range is claimed, later rules in the same document are skipped for that range.
@@ -78,10 +76,6 @@ By default `searchText` is a literal string, built the same way as `filePath` (c
   "searchTextIsExpression": true
 }
 ```
-
-### `documentLink: false`
-
-A rule with `documentLink: false` never produces a clickable link, but its matches still claim their text range, so a broader rule listed after it won't also match that text. Use it to carve out an exception for a more specific pattern without linkifying it.
 
 ## Examples
 

@@ -3,7 +3,7 @@
   "publisher": "ayutaya",
   "displayName": "Custom Document Link Rules",
   "description": "Turn text matched by your own regular expressions into clickable Document Links, for any language.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "repository": "https://github.com/knaka/custom-document-link-rules",
   "engines": {
     "vscode": "^1.138.0"

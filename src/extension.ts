@@ -4,11 +4,7 @@ import * as path from 'path';
 const extensionName = 'Custom Document Link Rules';
 const configSection = 'custom-document-link-rules';
 
-// ---------------------------------------------------------------------------
-// Configuration types
-// ---------------------------------------------------------------------------
-
-// External expression of rule
+// Rule item in the setting
 interface RuleConfig {
   pattern: string;
   filePath?: string;
@@ -23,7 +19,7 @@ interface RuleConfig {
   languageIds?: string[] | null;
 }
 
-// External expression of rules. “string” is a shorthand for `{ "pattern": "...", "filePath": '$1' }`
+// Rules in the setting. Item A plain string item is shorthand for `{ "pattern": "...", "filePath": '$1' }`
 type RulesConfig = Array<string | RuleConfig>;
 
 // Custom link rule
@@ -41,25 +37,10 @@ interface Rule {
   languageIds: string[] | null;
 }
 
-// Found link
-interface MatchedLink {
-  linkPath: string;
-  lineNr?: number;
-  charPos?: number;
-  searchText?: string;
-  pathRange: vscode.Range;
-  fullRange: vscode.Range;
-  documentLink: boolean;
-}
-
 interface PositionInfo {
   start: { line: number; character: number };
   end: { line: number; character: number };
 }
-
-// ---------------------------------------------------------------------------
-// Small helpers
-// ---------------------------------------------------------------------------
 
 function log(...args: unknown[]): void {
   if (vscode.workspace.getConfiguration(configSection).get<boolean>('enableLogging')) {
@@ -77,12 +58,13 @@ function offsetToPosition(document: vscode.TextDocument, offset: number): { line
   return { line: position.line + 1, character: position.character + 1 };
 }
 
-// A rule's `lineNr`/`charPos`/`searchText` (when `searchTextIsExpression`) are small
-// JavaScript expressions evaluated against the match `position`. `Function` is the only
-// way to turn user-provided settings text into a callable expression at runtime.
+// A rule's `lineNr`/`charPos`/`searchText` (when `searchTextIsExpression`) are
+// small JavaScript expressions evaluated against the match `position`.
+// `Function` is the only way to turn user-provided settings text into a
+// callable expression at runtime.
 function getExpressionFunction(expr: string): ((position: PositionInfo) => unknown) | undefined {
   try {
-    const factory = Function(`"use strict";return (function calcexpr(position) {
+    const factory = Function(`"use strict"; return (function calcexpr(position) {
       return (${expr});
     });`) as () => (position: PositionInfo) => unknown;
     return factory();
@@ -90,14 +72,6 @@ function getExpressionFunction(expr: string): ((position: PositionInfo) => unkno
     vscode.window.showErrorMessage(`${extensionName}: incomplete expression: ${expr}`);
     return undefined;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Variable substitution (${fileDirname}, ${workspaceFolder}, ${env:...}, ...)
-// ---------------------------------------------------------------------------
-
-function substituteVariable(text: string, value: string, variableName: string): string {
-  return text.replace(new RegExp(`\\$\\{${variableName}\\}`, 'g'), value);
 }
 
 function getNamedWorkspaceFolder(name: string): vscode.WorkspaceFolder | undefined {
@@ -117,82 +91,6 @@ function getNamedWorkspaceFolder(name: string): vscode.WorkspaceFolder | undefin
   }
   return list[0];
 }
-
-// Rule matching runs on every document parse, so only synchronous substitution is
-// supported here. `${command:...}` needs an async round-trip and is only available
-// to the `openFile` command below.
-function variableSubstitution(text: string, document: vscode.TextDocument | undefined): string {
-  text = text.replace(/\$\{env:([^}]+)\}/g, (_m, name: string) => process.env[name] ?? 'Unknown');
-  text = text.replace(/\$\{workspaceFolder:(.+?)\}/g, (_m, name: string) => {
-    const wsf = getNamedWorkspaceFolder(name);
-    return wsf ? wsf.uri.fsPath : 'Unknown';
-  });
-
-  let documentWorkspace: vscode.WorkspaceFolder | undefined;
-  let fileDirname: string | undefined;
-
-  if (document) {
-    documentWorkspace = vscode.workspace.getWorkspaceFolder(document.uri);
-    const file = document.fileName;
-    fileDirname = path.dirname(file);
-    const fileBasename = path.basename(file);
-    const fileExtname = path.extname(file);
-    const fileBasenameNoExtension = fileBasename.slice(0, fileBasename.length - fileExtname.length);
-    text = substituteVariable(text, fileDirname, 'fileDirname');
-    text = substituteVariable(text, fileBasename, 'fileBasename');
-    text = substituteVariable(text, fileBasenameNoExtension, 'fileBasenameNoExtension');
-    text = substituteVariable(text, fileExtname, 'fileExtname');
-  }
-
-  if (text.includes('${')) {
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    const workspace = folders.length === 1 ? folders[0] : documentWorkspace;
-    if (!workspace) {
-      vscode.window.showErrorMessage(`${extensionName}: use a named \${workspaceFolder:name} variable in a multi-root workspace`);
-      return text;
-    }
-    const workspaceFolder = workspace.uri.fsPath;
-    text = substituteVariable(text, workspaceFolder, 'workspaceFolder');
-    text = substituteVariable(text, path.basename(workspaceFolder), 'workspaceFolderBasename');
-
-    if (documentWorkspace && document) {
-      const relativeFile = document.fileName.substring(workspaceFolder.length + 1);
-      const relativeFileDirname = (fileDirname ?? '').substring(workspaceFolder.length + 1);
-      text = substituteVariable(text, workspaceFolder, 'fileWorkspaceFolder');
-      text = substituteVariable(text, relativeFile, 'relativeFile');
-      text = substituteVariable(text, relativeFileDirname, 'relativeFileDirname');
-    }
-  }
-
-  return text;
-}
-
-interface CommandArg {
-  command: string;
-  args?: unknown;
-}
-
-async function runCommandVariable(arg: CommandArg): Promise<unknown> {
-  return vscode.commands.executeCommand(arg.command, arg.args);
-}
-
-async function substituteCommandVariables(text: string, commandArgs: Record<string, CommandArg>): Promise<string> {
-  const varRE = /\$\{command:(.+?)\}/g;
-  const names: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = varRE.exec(text)) !== null) {names.push(m[1]);}
-
-  const results: unknown[] = [];
-  for (const name of names) {
-    results.push(await runCommandVariable(commandArgs[name] ?? { command: name }));
-  }
-  let i = 0;
-  return text.replace(varRE, () => String(results[i++]));
-}
-
-// ---------------------------------------------------------------------------
-// Rule normalization
-// ---------------------------------------------------------------------------
 
 function toRule(item: string | RuleConfig): Rule {
   if (typeof item === 'string') {
@@ -227,24 +125,88 @@ function toRule(item: string | RuleConfig): Rule {
   };
 }
 
-function getConfiguredRules(config: vscode.WorkspaceConfiguration): Rule[] {
+function toRules(config: vscode.WorkspaceConfiguration): Rule[] {
   return config.get<RulesConfig>('rules', []).map(toRule);
 }
 
-// ---------------------------------------------------------------------------
-// Finding links in a document
-// ---------------------------------------------------------------------------
+// Found link
+interface MatchedLink {
+  linkPath: string;
+  lineNr?: number;
+  charPos?: number;
+  searchText?: string;
+  pathRange: vscode.Range;
+  fullRange: vscode.Range;
+}
 
-function findLinks(document: vscode.TextDocument): MatchedLink[] {
+class CustomDocumentLink extends vscode.DocumentLink {
+  linkPath: string;
+  searchText?: string;
+  lineNr?: number;
+  charPos?: number;
+  constructor(match: MatchedLink) {
+    super(match.pathRange);
+    this.linkPath = match.linkPath;
+    this.searchText = match.searchText;
+    this.lineNr = match.lineNr;
+    this.charPos = match.charPos;
+  }
+}
+
+function substituteVariable(text: string, value: string, variableName: string): string {
+  return text.replace(new RegExp(`\\$\\{${variableName}\\}`, 'g'), value);
+}
+
+function substituteVariables(text: string, document: vscode.TextDocument): string {
+  text = text.replace(/\$\{env:([^}]+)\}/g, (_m, name: string) => process.env[name] ?? 'Unknown');
+  text = text.replace(/\$\{workspaceFolder:(.+?)\}/g, (_m, name: string) => {
+    const wsf = getNamedWorkspaceFolder(name);
+    return wsf ? wsf.uri.fsPath : 'Unknown';
+  });
+  let documentWorkspace: vscode.WorkspaceFolder | undefined;
+  let fileDirname: string | undefined;
+  documentWorkspace = vscode.workspace.getWorkspaceFolder(document.uri);
+  const file = document.fileName;
+  fileDirname = path.dirname(file);
+  const fileBasename = path.basename(file);
+  const fileExtname = path.extname(file);
+  const fileBasenameNoExtension = fileBasename.slice(0, fileBasename.length - fileExtname.length);
+  text = substituteVariable(text, fileDirname, 'fileDirname');
+  text = substituteVariable(text, fileBasename, 'fileBasename');
+  text = substituteVariable(text, fileBasenameNoExtension, 'fileBasenameNoExtension');
+  text = substituteVariable(text, fileExtname, 'fileExtname');
+  if (text.includes('${')) {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const workspace = folders.length === 1 ? folders[0] : documentWorkspace;
+    if (!workspace) {
+      vscode.window.showErrorMessage(`${extensionName}: use a named \${workspaceFolder:name} variable in a multi-root workspace`);
+      return text;
+    }
+    const workspaceFolder = workspace.uri.fsPath;
+    text = substituteVariable(text, workspaceFolder, 'workspaceFolder');
+    text = substituteVariable(text, path.basename(workspaceFolder), 'workspaceFolderBasename');
+    if (documentWorkspace && document) {
+      const relativeFile = document.fileName.substring(workspaceFolder.length + 1);
+      const relativeFileDirname = (fileDirname ?? '').substring(workspaceFolder.length + 1);
+      text = substituteVariable(text, workspaceFolder, 'fileWorkspaceFolder');
+      text = substituteVariable(text, relativeFile, 'relativeFile');
+      text = substituteVariable(text, relativeFileDirname, 'relativeFileDirname');
+    }
+  }
+  return text;
+}
+
+// Find links in a document.
+function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentLink[] {
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
   const config = vscode.workspace.getConfiguration(configSection, workspaceFolder?.uri);
   const fileroot = config.get<string[]>('fileroot', []);
-
-  const rules = getConfiguredRules(config).filter(
+  const rules = toRules(config).filter(
     rule => rule.languageIds === null || rule.languageIds.includes(document.languageId)
   );
-  if (rules.length === 0) {return [];}
-
+  if (rules.length === 0) {
+    return []
+  }
   const ownFilePath = document.uri.fsPath;
   const docFolder = path.dirname(ownFilePath);
   let filerootFolder = workspaceFolder ? workspaceFolder.uri.fsPath : docFolder;
@@ -257,98 +219,73 @@ function findLinks(document: vscode.TextDocument): MatchedLink[] {
       }
     }
   }
-
   const docText = document.getText();
-  const matches: MatchedLink[] = [];
-
+  const links: MatchedLink[] = [];
   for (const rule of rules) {
     const patternRE = new RegExp(rule.pattern, 'gmi');
-    const replaceRE = new RegExp(rule.pattern, 'mi'); // separate copy: replace() resets lastIndex
-    let result: RegExpExecArray | null;
-    while ((result = patternRE.exec(docText)) !== null) {
-      if (result.length < 2) {continue;} // no capture group defined
-      const matchResult = result;
-
-      let filePath = matchResult[0].replace(replaceRE, rule.filePath);
-      filePath = variableSubstitution(filePath, document);
-      if (filePath.length === 0) {continue;}
+    // separate copy: replace() resets lastIndex
+    const replaceRE = new RegExp(rule.pattern, 'mi');
+    let optMatch: RegExpExecArray | null;
+    while ((optMatch = patternRE.exec(docText)) !== null) {
+      const match = optMatch;
+      // no capture group defined
+      if (match.length <= 1) {
+        continue;
+      }
+      let filePath = match[0].replace(replaceRE, rule.filePath);
+      filePath = substituteVariables(filePath, document);
+      if (filePath.length === 0) { continue; }
       if (filePath === '/') {filePath = '/__root__';}
-
       let linkPath = filePath;
       if (!rule.isAbsolutePath) {
         const base = filePath.startsWith('/') ? filerootFolder : docFolder;
         linkPath = path.join(base, filePath.startsWith('/') ? filePath.substring(1) : filePath);
       }
       if (!rule.allowCurrentFile && linkPath === ownFilePath) {continue;}
-
-      let filePos = matchResult.index;
+      let filePos = match.index;
       let filePosEnd = patternRE.lastIndex;
       const fullRange = new vscode.Range(document.positionAt(filePos), document.positionAt(filePosEnd));
       // regexes matching the largest text ranges should be listed first in settings
-      if (matches.some(m => {
+      if (links.some(m => {
         const overlap = fullRange.intersection(m.fullRange);
         return overlap !== undefined && !overlap.isEmpty;
       })) {continue;}
-
       if (rule.rangeGroup) {
         const groupNr = getCaptureGroupNr(rule.rangeGroup);
-        if (groupNr !== undefined && groupNr < matchResult.length) {
-          const text = matchResult[groupNr];
-          filePos += matchResult[0].indexOf(text);
+        if (groupNr !== undefined && groupNr < match.length) {
+          const text = match[groupNr];
+          filePos += match[0].indexOf(text);
           filePosEnd = filePos + text.length;
         }
       }
       const pathRange = new vscode.Range(document.positionAt(filePos), document.positionAt(filePosEnd));
-
       const position: PositionInfo = {
-        start: offsetToPosition(document, matchResult.index),
+        start: offsetToPosition(document, match.index),
         end: offsetToPosition(document, patternRE.lastIndex),
       };
       const getNumber = (expr: string | undefined): number | undefined => {
         if (!expr) {return undefined;}
-        const fn = getExpressionFunction(matchResult[0].replace(replaceRE, expr));
+        const fn = getExpressionFunction(match[0].replace(replaceRE, expr));
         return fn ? Number(fn(position)) : undefined;
       };
       const lineNr = getNumber(rule.lineNr);
       const charPos = getNumber(rule.charPos);
-
       let searchText = rule.searchText;
       if (searchText) {
         if (rule.searchTextIsExpression) {
           // Capture groups are spliced in via JSON.stringify so they always land as safe
           // JS string literals, not raw text that could break the expression's syntax.
-          const expr = searchText.replace(/\$(\d+)/g, (_m, n) => JSON.stringify(matchResult[Number(n)] ?? ''));
+          const expr = searchText.replace(/\$(\d+)/g, (_m, n) => JSON.stringify(match[Number(n)] ?? ''));
           const fn = getExpressionFunction(expr);
           searchText = fn ? String(fn(position)) : undefined;
         } else {
-          searchText = matchResult[0].replace(replaceRE, searchText);
+          searchText = match[0].replace(replaceRE, searchText);
         }
       }
-
-      matches.push({ linkPath, lineNr, charPos, searchText, pathRange, fullRange, documentLink: rule.documentLink });
+      links.push({ linkPath, lineNr, charPos, searchText, pathRange, fullRange });
     }
   }
-
-  return matches;
-}
-
-// ---------------------------------------------------------------------------
-// DocumentLinkProvider
-// ---------------------------------------------------------------------------
-
-class CustomDocumentLink extends vscode.DocumentLink {
-  linkPath: string;
-  searchText?: string;
-  lineNr?: number;
-  charPos?: number;
-
-  constructor(match: MatchedLink) {
-    super(match.pathRange);
-    this.linkPath = match.linkPath;
-    this.searchText = match.searchText;
-    this.lineNr = match.lineNr;
-    this.charPos = match.charPos;
-  }
+  return links.map(m => new CustomDocumentLink(m));
 }
 
 function locateText(document: vscode.TextDocument, text: string): [number, number] {
@@ -369,11 +306,10 @@ function findOpenTextDocument(uri: vscode.Uri): vscode.TextDocument | undefined 
   );
 }
 
-async function resolveLink(link: CustomDocumentLink): Promise<vscode.DocumentLink> {
+async function resolveCustomDocumentLink(link: CustomDocumentLink): Promise<vscode.DocumentLink> {
   let uri = vscode.Uri.file(link.linkPath);
   let lineNr = link.lineNr;
   let charPos = link.charPos;
-
   if (link.searchText) {
     let document = findOpenTextDocument(uri);
     if (!document) {
@@ -392,7 +328,6 @@ async function resolveLink(link: CustomDocumentLink): Promise<vscode.DocumentLin
       vscode.window.showInformationMessage(`${extensionName}: please open the file and try again: ${uri.fsPath}`);
     }
   }
-
   if (lineNr) {
     let fragment = `L${lineNr}`;
     if (charPos) {fragment += `,${charPos}`;}
@@ -405,46 +340,46 @@ async function resolveLink(link: CustomDocumentLink): Promise<vscode.DocumentLin
 
 const linkProvider: vscode.DocumentLinkProvider = {
   provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
-    return findLinks(document).filter(m => m.documentLink).map(m => new CustomDocumentLink(m));
+    return findCustomDocumentLinks(document);
   },
   resolveDocumentLink(link: vscode.DocumentLink): vscode.ProviderResult<vscode.DocumentLink> {
-    return resolveLink(link as CustomDocumentLink);
+    return resolveCustomDocumentLink(link as CustomDocumentLink);
   },
 };
 
-// ---------------------------------------------------------------------------
-// Dynamic (re)registration, one selector per configured languageId
-// ---------------------------------------------------------------------------
-
 let linkProviderDisposables: vscode.Disposable[] = [];
 
-function registerLinkProviders(): void {
+function deregisterLinkProviders() {
   linkProviderDisposables.forEach(d => d.dispose());
   linkProviderDisposables = [];
-
-  const rules = getConfiguredRules(vscode.workspace.getConfiguration(configSection));
-  if (rules.length === 0) {return;}
-
-  // A rule with languageIds: null applies to every language, so a single { scheme: 'file' }
-  // selector already covers every other rule too. Registering per-language selectors on top
-  // of it would make VS Code call provideDocumentLinks twice for the same document (once per
-  // matching selector), duplicating every link it returns.
-  if (rules.some(rule => rule.languageIds === null)) {
-    linkProviderDisposables.push(vscode.languages.registerDocumentLinkProvider({ scheme: 'file' }, linkProvider));
-    return;
-  }
-
-  const languageIds = new Set<string>();
-  for (const rule of rules) {
-    for (const languageId of rule.languageIds ?? []) {languageIds.add(languageId);}
-  }
-  for (const languageId of languageIds) {
-    const selector: vscode.DocumentSelector = { language: languageId, scheme: 'file' };
-    linkProviderDisposables.push(vscode.languages.registerDocumentLinkProvider(selector, linkProvider));
-  }
 }
 
-// ---------------------------------------------------------------------------
+function registerLinkProviders(): void {
+  deregisterLinkProviders();
+  const rules = toRules(vscode.workspace.getConfiguration(configSection));
+  if (rules.length === 0) {
+    return
+  }
+  // A rule with languageIds: null applies to every language, so a single {
+  // scheme: 'file' } selector already covers every other rule too. Registering
+  // per-language selectors on top of it would make VS Code call
+  // provideDocumentLinks twice for the same document (once per matching
+  // selector), duplicating every link it returns.
+  if (rules.some(rule => rule.languageIds === null)) {
+    linkProviderDisposables.push(vscode.languages.registerDocumentLinkProvider({ scheme: 'file' }, linkProvider));
+  } else {
+    const languageIds = new Set<string>();
+    for (const rule of rules) {
+      for (const languageId of rule.languageIds ?? []) {
+        languageIds.add(languageId)
+      }
+    }
+    for (const languageId of languageIds) {
+      const selector: vscode.DocumentSelector = { scheme: 'file', language: languageId };
+      linkProviderDisposables.push(vscode.languages.registerDocumentLinkProvider(selector, linkProvider));
+    }
+  }
+}
 
 export function activate(context: vscode.ExtensionContext): void {
   registerLinkProviders();
@@ -458,6 +393,5 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
-  linkProviderDisposables.forEach(d => d.dispose());
-  linkProviderDisposables = [];
+  deregisterLinkProviders();
 }
