@@ -96,51 +96,8 @@ function getExpressionFunction(expr: string): ((position: PositionInfo) => unkno
 // Variable substitution (${fileDirname}, ${workspaceFolder}, ${env:...}, ...)
 // ---------------------------------------------------------------------------
 
-interface FindReplace {
-  find: string;
-  replace: string;
-  flags?: string;
-}
-
-function getVariableWithParamsRegex(varName: string, flags: string): RegExp {
-  return new RegExp(`\\$\\{${varName}(\\}|([^a-zA-Z{}$]+)([\\s\\S]+?)\\2\\})`, flags);
-}
-
-// ${variable<sep>find=...:flags=...:replace=...:<sep>} — one or more find/replace
-// transforms applied to the variable's value, in declaration order.
-function parseTransforms(regexMatch: RegExpExecArray): FindReplace[] {
-  const separator = regexMatch[2];
-  if (separator === undefined) {return [];}
-  const transforms: FindReplace[] = [];
-  let current: FindReplace | undefined;
-  for (const property of regexMatch[3].split(separator).map(s => s.trimStart())) {
-    const [key, ...rest] = property.split('=');
-    const value = rest.length > 0 ? rest.join('=') : undefined;
-    if (key === 'find') {
-      current = { find: value ?? '(.*)', replace: '$1' };
-      transforms.push(current);
-      continue;
-    }
-    if (!current) {
-      current = { find: '(.*)', replace: '$1' };
-      transforms.push(current);
-    }
-    if (key === 'flags') {current.flags = value;}
-    if (key === 'replace') {current.replace = value ?? '$1';}
-  }
-  return transforms;
-}
-
-function transformVariable(text: string, value: string, variableName: string): string {
-  const regex = getVariableWithParamsRegex(variableName, 'g');
-  return text.replace(regex, (...match) => {
-    const regexMatch = match.slice(0, -2) as unknown as RegExpExecArray;
-    let result = value;
-    for (const transform of parseTransforms(regexMatch)) {
-      result = result.replace(new RegExp(transform.find, transform.flags), transform.replace);
-    }
-    return result;
-  });
+function substituteVariable(text: string, value: string, variableName: string): string {
+  return text.replace(new RegExp(`\\$\\{${variableName}\\}`, 'g'), value);
 }
 
 function getNamedWorkspaceFolder(name: string): vscode.WorkspaceFolder | undefined {
@@ -181,10 +138,10 @@ function variableSubstitution(text: string, document: vscode.TextDocument | unde
     const fileBasename = path.basename(file);
     const fileExtname = path.extname(file);
     const fileBasenameNoExtension = fileBasename.slice(0, fileBasename.length - fileExtname.length);
-    text = transformVariable(text, fileDirname, 'fileDirname');
-    text = transformVariable(text, fileBasename, 'fileBasename');
-    text = transformVariable(text, fileBasenameNoExtension, 'fileBasenameNoExtension');
-    text = transformVariable(text, fileExtname, 'fileExtname');
+    text = substituteVariable(text, fileDirname, 'fileDirname');
+    text = substituteVariable(text, fileBasename, 'fileBasename');
+    text = substituteVariable(text, fileBasenameNoExtension, 'fileBasenameNoExtension');
+    text = substituteVariable(text, fileExtname, 'fileExtname');
   }
 
   if (text.includes('${')) {
@@ -195,15 +152,15 @@ function variableSubstitution(text: string, document: vscode.TextDocument | unde
       return text;
     }
     const workspaceFolder = workspace.uri.fsPath;
-    text = transformVariable(text, workspaceFolder, 'workspaceFolder');
-    text = transformVariable(text, path.basename(workspaceFolder), 'workspaceFolderBasename');
+    text = substituteVariable(text, workspaceFolder, 'workspaceFolder');
+    text = substituteVariable(text, path.basename(workspaceFolder), 'workspaceFolderBasename');
 
     if (documentWorkspace && document) {
       const relativeFile = document.fileName.substring(workspaceFolder.length + 1);
       const relativeFileDirname = (fileDirname ?? '').substring(workspaceFolder.length + 1);
-      text = transformVariable(text, workspaceFolder, 'fileWorkspaceFolder');
-      text = transformVariable(text, relativeFile, 'relativeFile');
-      text = transformVariable(text, relativeFileDirname, 'relativeFileDirname');
+      text = substituteVariable(text, workspaceFolder, 'fileWorkspaceFolder');
+      text = substituteVariable(text, relativeFile, 'relativeFile');
+      text = substituteVariable(text, relativeFileDirname, 'relativeFileDirname');
     }
   }
 

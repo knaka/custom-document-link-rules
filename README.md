@@ -62,14 +62,6 @@ The first entry (joined with the workspace folder) whose path is a prefix of the
 * `${workspaceFolder:NAME}` — a specific workspace folder in a multi-root workspace, by name, `[index]`, or a path suffix
 * `${command:name}` — the result of running a command (**`openFile` only** — rule matching happens synchronously on every keystroke, so it can't await a command)
 
-Most of these accept an optional **transform**, one or more find/replace operations applied to the variable's value before substitution:
-
-```
-${fileBasenameNoExtension:find=route$:replace=:}
-```
-
-Here `:` is the separator between the variable name and its properties, and between each `find=`/`flags=`/`replace=` triple — pick any character (or run) not used elsewhere in the expression. `find` defaults to `(.*)`, `replace` to `$1`.
-
 ### The `position` variable
 
 Inside `lineNr`, `charPos`, and an expression `searchText`, a `position` object is available with `position.start.line`, `position.start.character`, `position.end.line`, `position.end.character` — the 1-based line/character of the match's start and end.
