@@ -3,7 +3,7 @@
   "publisher": "ayutaya",
   "displayName": "Custom Document Link Rules",
   "description": "Turn text matched by your own regular expressions into clickable Document Links, for any language.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "repository": "https://github.com/knaka/custom-document-link-rules",
   "engines": {
     "vscode": "^1.138.0"
@@ -72,9 +72,9 @@
                 "type": "string",
                 "description": "To which character position do you want to jump, use any capture group from 'pattern' regex and/or '${...}' expressions using the current match position. Only used when 'lineNum' is defined. No default. Interpolated as a JavaScript template literal (e.g. '${match[1]}', '${workspaceFolder}') after capture groups ($1, ...) are substituted. Not interpolated in untrusted workspaces."
               },
-              "rangeGroup": {
+              "linkRange": {
                 "type": "string",
-                "description": "The capture group that is the range for the Document Link. Use $n notation. Default: if no 'lineNum' specified uses capture group from 'filePath'."
+                "description": "Which part of the match becomes the clickable range of the Document Link, as $n ($0 for the whole match). Default: if no 'lineNum' specified uses capture group from 'filePath'."
               },
               "isAbsolutePath": {
                 "type": "boolean",

@@ -12,7 +12,7 @@ interface RuleConfig {
   lineNum?: string;
   charPos?: string;
   searchText?: string;
-  rangeGroup?: string;
+  linkRange?: string;
   documentLink?: boolean;
   allowCurrentFile?: boolean;
   disableInterpolation?: boolean;
@@ -30,7 +30,7 @@ interface Rule {
   lineNum?: string;
   charPos?: string;
   searchText?: string;
-  rangeGroup?: string;
+  linkRange?: string;
   documentLink: boolean;
   allowCurrentFile: boolean;
   disableInterpolation: boolean;
@@ -113,10 +113,10 @@ function toRule(item: string | RuleConfig): Rule {
     };
   }
   const filePath = item.filePath ?? '$1';
-  let rangeGroup = item.rangeGroup;
-  if (!rangeGroup && !item.lineNum) {
+  let linkRange = item.linkRange;
+  if (!linkRange && !item.lineNum) {
     const groupNum = getCaptureGroupNum(filePath);
-    if (groupNum !== undefined) {rangeGroup = `$${groupNum}`;}
+    if (groupNum !== undefined) {linkRange = `$${groupNum}`;}
   }
   return {
     pattern: item.pattern,
@@ -125,7 +125,7 @@ function toRule(item: string | RuleConfig): Rule {
     lineNum: item.lineNum,
     charPos: item.charPos,
     searchText: item.searchText,
-    rangeGroup,
+    linkRange,
     documentLink: item.documentLink ?? true,
     allowCurrentFile: item.allowCurrentFile ?? false,
     disableInterpolation: item.disableInterpolation ?? false,
@@ -143,7 +143,7 @@ interface MatchedLink {
   lineNum?: number;
   charPos?: number;
   searchText?: string;
-  pathRange: vscode.Range;
+  linkRange: vscode.Range;
   fullRange: vscode.Range;
 }
 
@@ -153,7 +153,7 @@ class CustomDocumentLink extends vscode.DocumentLink {
   lineNum?: number;
   charPos?: number;
   constructor(match: MatchedLink) {
-    super(match.pathRange);
+    super(match.linkRange);
     this.linkPath = match.linkPath;
     this.searchText = match.searchText;
     this.lineNum = match.lineNum;
@@ -257,15 +257,15 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
         const overlap = fullRange.intersection(m.fullRange);
         return overlap !== undefined && !overlap.isEmpty;
       })) {continue;}
-      if (rule.rangeGroup) {
-        const groupNum = getCaptureGroupNum(rule.rangeGroup);
+      if (rule.linkRange) {
+        const groupNum = getCaptureGroupNum(rule.linkRange);
         if (groupNum !== undefined && groupNum < match.length) {
           const text = match[groupNum];
           filePos += match[0].indexOf(text);
           filePosEnd = filePos + text.length;
         }
       }
-      const pathRange = new vscode.Range(document.positionAt(filePos), document.positionAt(filePosEnd));
+      const linkRange = new vscode.Range(document.positionAt(filePos), document.positionAt(filePosEnd));
       const getNumber = (template: string | undefined): number | undefined => {
         const text = expand(template);
         return text ? Number(text) : undefined;
@@ -273,7 +273,7 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
       const lineNum = getNumber(rule.lineNum);
       const charPos = getNumber(rule.charPos);
       const searchText = expand(rule.searchText);
-      links.push({ linkPath, lineNum, charPos, searchText, pathRange, fullRange });
+      links.push({ linkPath, lineNum, charPos, searchText, linkRange, fullRange });
     }
   }
   return links.map(m => new CustomDocumentLink(m));

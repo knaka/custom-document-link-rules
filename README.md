@@ -29,7 +29,7 @@ An **array** of rules. A rule is either a plain string — a shorthand for `{ "p
 | `charPos` | [template](#templates) | — | Character position to jump to. Only used when `lineNum` is set. |
 | `searchText` | [template](#templates) | — | Text to search for in the target file, used to jump to it instead of `lineNum`/`charPos`. Takes precedence over `lineNum`/`charPos` when set. |
 | `disableInterpolation` | boolean | `false` | Skip step 2 of [template](#templates) expansion for this rule: only capture groups are substituted, and `${...}` is left as literal text. |
-| `rangeGroup` | string | derived from `filePath` | Which part of the match becomes the clickable range, as `$n`. Defaults to the capture group used in `filePath` (or the whole match if `lineNum` is set). |
+| `linkRange` | string | derived from `filePath` | Which part of the match becomes the clickable range, as `$n` (`$0` for the whole match). Defaults to the capture group used in `filePath` (or the whole match if `lineNum` is set). |
 | `languageIds` | array of string, or `null` | `null` | Restrict this rule to these [`languageId`](https://code.visualstudio.com/docs/languages/overview#_language-id)s. `null` (or omitting the property) applies the rule to every language. |
 
 Because different regexes can match overlapping text, list the rule that matches the *largest* range first — once a range is claimed, later rules in the same document are skipped for that range.
@@ -64,7 +64,7 @@ The first entry (joined with the workspace folder) whose path is a prefix of the
   "pattern": "(?:^|(?<=[\\s()]))(?<file>\\./[^\\s]+)#:~:text=(?:[a-zA-Z0-9_.!~*'()\\-%]+-,)?(?<text>[^,\\s&]+)",
   "filePath": "${match.groups['file']}",
   "searchText": "${decodeURIComponent(match.groups['text'])}",
-  "rangeGroup": "$0",
+  "linkRange": "$0",
 },
 ```
 
