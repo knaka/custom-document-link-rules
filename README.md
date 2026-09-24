@@ -25,11 +25,11 @@ An **array** of rules. A rule is either a plain string — a shorthand for `{ "p
 | `pattern` | string (regex, required) | — | Matched against the document text. Must have at least one capture group. |
 | `filePath` | string | `"$1"` | The link target, built from `pattern`'s capture groups (`$1`, `$2`, ...) and [variables](#variables). Start it with `/` to make it relative to a [`fileroot`](#custom-document-link-rulesfileroot) folder instead of the current file's folder. |
 | `isAbsolutePath` | boolean | `false` | Treat the resolved `filePath` as an absolute path as-is, instead of joining it to the current file's folder or a fileroot folder. |
-| `lineNr` | string | — | Line number to jump to: capture groups and/or a JS expression using [`position`](#the-position-variable). |
-| `charPos` | string | — | Character position to jump to. Only used when `lineNr` is set. |
-| `searchText` | string | — | Literal text to search for in the target file, used to jump to it instead of `lineNr`/`charPos`. Takes precedence over `lineNr`/`charPos` when set. |
+| `lineNum` | string | — | Line number to jump to: capture groups and/or a JS expression using [`position`](#the-position-variable). |
+| `charPos` | string | — | Character position to jump to. Only used when `lineNum` is set. |
+| `searchText` | string | — | Literal text to search for in the target file, used to jump to it instead of `lineNum`/`charPos`. Takes precedence over `lineNum`/`charPos` when set. |
 | `searchTextIsExpression` | boolean | `false` | Evaluate `searchText` as a JS expression. See [below](#searchTextIsExpression). |
-| `rangeGroup` | string | derived from `filePath` | Which part of the match becomes the clickable range, as `$n`. Defaults to the capture group used in `filePath` (or the whole match if `lineNr` is set). |
+| `rangeGroup` | string | derived from `filePath` | Which part of the match becomes the clickable range, as `$n`. Defaults to the capture group used in `filePath` (or the whole match if `lineNum` is set). |
 | `languageIds` | array of string, or `null` | `null` | Restrict this rule to these [`languageId`](https://code.visualstudio.com/docs/languages/overview#_language-id)s. `null` (or omitting the property) applies the rule to every language. |
 
 Because different regexes can match overlapping text, list the rule that matches the *largest* range first — once a range is claimed, later rules in the same document are skipped for that range.
@@ -61,7 +61,7 @@ The first entry (joined with the workspace folder) whose path is a prefix of the
 
 ### The `position` variable
 
-Inside `lineNr`, `charPos`, and an expression `searchText`, a `position` object is available with `position.start.line`, `position.start.character`, `position.end.line`, `position.end.character` — the 1-based line/character of the match's start and end.
+Inside `lineNum`, `charPos`, and an expression `searchText`, a `position` object is available with `position.start.line`, `position.start.character`, `position.end.line`, `position.end.character` — the 1-based line/character of the match's start and end.
 
 ### `searchTextIsExpression`
 
@@ -93,7 +93,7 @@ The second rule's `filePath` starts with `/`, so it resolves against [`fileroot`
 
 ```jsonc
 "custom-document-link-rules.rules": [
-  { "pattern": "([-\\w./]+\\.py):(\\d+)", "filePath": "$1", "lineNr": "$2" }
+  { "pattern": "([-\\w./]+\\.py):(\\d+)", "filePath": "$1", "lineNum": "$2" }
 ]
 ```
 

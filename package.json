@@ -54,7 +54,7 @@
                 "description": "Construct the linked file path, use any capture group from 'find' regex. Use \"/\" as first character to signal that file path is relative to a fileroot path",
                 "default": "$1"
               },
-              "lineNr": {
+              "lineNum": {
                 "type": "string",
                 "description": "To which line number do you want to jump, use any capture group from 'find' regex and/or an expression using the current match position. No default"
               },
@@ -68,11 +68,11 @@
               },
               "charPos": {
                 "type": "string",
-                "description": "To which character position do you want to jump, use any capture group from 'find' regex and/or an expression using the current match position. Only used when 'lineNr' is defined. No default"
+                "description": "To which character position do you want to jump, use any capture group from 'find' regex and/or an expression using the current match position. Only used when 'lineNum' is defined. No default"
               },
               "rangeGroup": {
                 "type": "string",
-                "description": "The capture group that is the range for the Document Link. Use $n notation. Default: if no 'lineNr' specified uses capture group from 'filePath'."
+                "description": "The capture group that is the range for the Document Link. Use $n notation. Default: if no 'lineNum' specified uses capture group from 'filePath'."
               },
               "isAbsolutePath": {
                 "type": "boolean",

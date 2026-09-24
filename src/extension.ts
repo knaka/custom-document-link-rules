@@ -9,7 +9,7 @@ interface RuleConfig {
   pattern: string;
   filePath?: string;
   isAbsolutePath?: boolean;
-  lineNr?: string;
+  lineNum?: string;
   charPos?: string;
   searchText?: string;
   searchTextIsExpression?: boolean;
@@ -27,7 +27,7 @@ interface Rule {
   pattern: string;
   filePath: string;
   isAbsolutePath: boolean;
-  lineNr?: string;
+  lineNum?: string;
   charPos?: string;
   searchText?: string;
   searchTextIsExpression: boolean;
@@ -48,7 +48,7 @@ function log(...args: unknown[]): void {
   }
 }
 
-function getCaptureGroupNr(text: string): number | undefined {
+function getCaptureGroupNum(text: string): number | undefined {
   const match = text.match(/\$(\d+)/);
   return match ? Number(match[1]) : undefined;
 }
@@ -58,7 +58,7 @@ function offsetToPosition(document: vscode.TextDocument, offset: number): { line
   return { line: position.line + 1, character: position.character + 1 };
 }
 
-// A rule's `lineNr`/`charPos`/`searchText` (when `searchTextIsExpression`) are
+// A rule's `lineNum`/`charPos`/`searchText` (when `searchTextIsExpression`) are
 // small JavaScript expressions evaluated against the match `position`.
 // `Function` is the only way to turn user-provided settings text into a
 // callable expression at runtime.
@@ -106,15 +106,15 @@ function toRule(item: string | RuleConfig): Rule {
   }
   const filePath = item.filePath ?? '$1';
   let rangeGroup = item.rangeGroup;
-  if (!rangeGroup && !item.lineNr) {
-    const groupNr = getCaptureGroupNr(filePath);
-    if (groupNr !== undefined) {rangeGroup = `$${groupNr}`;}
+  if (!rangeGroup && !item.lineNum) {
+    const groupNum = getCaptureGroupNum(filePath);
+    if (groupNum !== undefined) {rangeGroup = `$${groupNum}`;}
   }
   return {
     pattern: item.pattern,
     filePath,
     isAbsolutePath: item.isAbsolutePath ?? false,
-    lineNr: item.lineNr,
+    lineNum: item.lineNum,
     charPos: item.charPos,
     searchText: item.searchText,
     searchTextIsExpression: item.searchTextIsExpression ?? false,
@@ -132,7 +132,7 @@ function toRules(config: vscode.WorkspaceConfiguration): Rule[] {
 // Found link
 interface MatchedLink {
   linkPath: string;
-  lineNr?: number;
+  lineNum?: number;
   charPos?: number;
   searchText?: string;
   pathRange: vscode.Range;
@@ -142,13 +142,13 @@ interface MatchedLink {
 class CustomDocumentLink extends vscode.DocumentLink {
   linkPath: string;
   searchText?: string;
-  lineNr?: number;
+  lineNum?: number;
   charPos?: number;
   constructor(match: MatchedLink) {
     super(match.pathRange);
     this.linkPath = match.linkPath;
     this.searchText = match.searchText;
-    this.lineNr = match.lineNr;
+    this.lineNum = match.lineNum;
     this.charPos = match.charPos;
   }
 }
@@ -251,9 +251,9 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
         return overlap !== undefined && !overlap.isEmpty;
       })) {continue;}
       if (rule.rangeGroup) {
-        const groupNr = getCaptureGroupNr(rule.rangeGroup);
-        if (groupNr !== undefined && groupNr < match.length) {
-          const text = match[groupNr];
+        const groupNum = getCaptureGroupNum(rule.rangeGroup);
+        if (groupNum !== undefined && groupNum < match.length) {
+          const text = match[groupNum];
           filePos += match[0].indexOf(text);
           filePosEnd = filePos + text.length;
         }
@@ -268,7 +268,7 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
         const fn = getExpressionFunction(match[0].replace(replaceRE, expr));
         return fn ? Number(fn(position)) : undefined;
       };
-      const lineNr = getNumber(rule.lineNr);
+      const lineNum = getNumber(rule.lineNum);
       const charPos = getNumber(rule.charPos);
       let searchText = rule.searchText;
       if (searchText) {
@@ -282,22 +282,22 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
           searchText = match[0].replace(replaceRE, searchText);
         }
       }
-      links.push({ linkPath, lineNr, charPos, searchText, pathRange, fullRange });
+      links.push({ linkPath, lineNum, charPos, searchText, pathRange, fullRange });
     }
   }
   return links.map(m => new CustomDocumentLink(m));
 }
 
 function locateText(document: vscode.TextDocument, text: string): [number, number] {
-  let lineNr = 1;
+  let lineNum = 1;
   let charPos = 1;
   const offset = document.getText().indexOf(text);
   if (offset >= 0) {
     const position = document.positionAt(offset);
-    lineNr = position.line + 1;
+    lineNum = position.line + 1;
     charPos = position.character + 1;
   }
-  return [lineNr, charPos];
+  return [lineNum, charPos];
 }
 
 function findOpenTextDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
@@ -308,7 +308,7 @@ function findOpenTextDocument(uri: vscode.Uri): vscode.TextDocument | undefined 
 
 async function resolveCustomDocumentLink(link: CustomDocumentLink): Promise<vscode.DocumentLink> {
   let uri = vscode.Uri.file(link.linkPath);
-  let lineNr = link.lineNr;
+  let lineNum = link.lineNum;
   let charPos = link.charPos;
   if (link.searchText) {
     let document = findOpenTextDocument(uri);
@@ -323,13 +323,13 @@ async function resolveCustomDocumentLink(link: CustomDocumentLink): Promise<vsco
       }
     }
     if (document) {
-      [lineNr, charPos] = locateText(document, link.searchText);
+      [lineNum, charPos] = locateText(document, link.searchText);
     } else {
       vscode.window.showInformationMessage(`${extensionName}: please open the file and try again: ${uri.fsPath}`);
     }
   }
-  if (lineNr) {
-    let fragment = `L${lineNr}`;
+  if (lineNum) {
+    let fragment = `L${lineNum}`;
     if (charPos) {fragment += `,${charPos}`;}
     uri = uri.with({ fragment });
   }
