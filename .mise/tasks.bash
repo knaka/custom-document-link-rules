@@ -12,8 +12,8 @@ task_build() {
 task_install() {
   mkdir -p "$PROJECT_DIR"/.build
   vsce package --out="$PROJECT_DIR"/.build/temp.vsix
-  code --uninstall-extension knaka.custom-document-link-rules || :
-  rm -fr "$HOME"/.vscode/extensions/knaka.custom-document-link-rules-*
+  code --uninstall-extension ayutaya.custom-document-link-rules || :
+  rm -fr "$HOME"/.vscode/extensions/ayutaya.custom-document-link-rules-*
   code --install-extension "$PROJECT_DIR"/.build/temp.vsix
 }
 

@@ -23,12 +23,12 @@ An **array** of rules. A rule is either a plain string — a shorthand for `{ "p
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `pattern` | string (regex, required) | — | Matched against the document text. Must have at least one capture group. |
-| `filePath` | string | `"$1"` | The link target, built from `pattern`'s capture groups (`$1`, `$2`, ...) and [variables](#variables). Start it with `/` to make it relative to a [`fileroot`](#custom-document-link-rulesfileroot) folder instead of the current file's folder. |
+| `filePath` | [template](#templates) | `"$1"` | The link target. Start it with `/` to make it relative to a [`fileroot`](#custom-document-link-rulesfileroot) folder instead of the current file's folder. |
 | `isAbsolutePath` | boolean | `false` | Treat the resolved `filePath` as an absolute path as-is, instead of joining it to the current file's folder or a fileroot folder. |
-| `lineNum` | string | — | Line number to jump to: capture groups and/or a JS expression using [`position`](#the-position-variable). |
-| `charPos` | string | — | Character position to jump to. Only used when `lineNum` is set. |
-| `searchText` | string | — | Literal text to search for in the target file, used to jump to it instead of `lineNum`/`charPos`. Takes precedence over `lineNum`/`charPos` when set. |
-| `searchTextIsExpression` | boolean | `false` | Evaluate `searchText` as a JS expression. See [below](#searchTextIsExpression). |
+| `lineNum` | [template](#templates) | — | Line number to jump to. |
+| `charPos` | [template](#templates) | — | Character position to jump to. Only used when `lineNum` is set. |
+| `searchText` | [template](#templates) | — | Text to search for in the target file, used to jump to it instead of `lineNum`/`charPos`. Takes precedence over `lineNum`/`charPos` when set. |
+| `disableInterpolation` | boolean | `false` | Skip step 2 of [template](#templates) expansion for this rule: only capture groups are substituted, and `${...}` is left as literal text. |
 | `rangeGroup` | string | derived from `filePath` | Which part of the match becomes the clickable range, as `$n`. Defaults to the capture group used in `filePath` (or the whole match if `lineNum` is set). |
 | `languageIds` | array of string, or `null` | `null` | Restrict this rule to these [`languageId`](https://code.visualstudio.com/docs/languages/overview#_language-id)s. `null` (or omitting the property) applies the rule to every language. |
 
@@ -50,31 +50,38 @@ An array of directories, relative to the workspace folder, used to resolve `file
 
 The first entry (joined with the workspace folder) whose path is a prefix of the current file's folder is used as the root; if none match, the workspace folder itself is used.
 
-## Variables
+## Templates
 
-`filePath` (and the `openFile` command's `file` argument) can reference:
+`filePath`, `lineNum`, `charPos`, and `searchText` are templates, expanded in two steps:
 
-* `${fileDirname}`, `${fileBasename}`, `${fileBasenameNoExtension}`, `${fileExtname}` — derived from the current file
-* `${workspaceFolder}`, `${workspaceFolderBasename}`, `${fileWorkspaceFolder}`, `${relativeFile}`, `${relativeFileDirname}`
-* `${env:NAME}` — an environment variable
-* `${workspaceFolder:NAME}` — a specific workspace folder in a multi-root workspace, by name, `[index]`, or a path suffix
+1. `pattern`'s capture groups `$1`, `$2`, ... are substituted as raw text (as in [`String.prototype.replace`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#specifying_a_string_as_the_replacement)).
+2. The result is interpolated as a JavaScript [template literal](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals) (via `String.raw`, so backslashes stay as-is), so `${...}` can hold any JS expression using the [variables](#variables) below.
 
-### The `position` variable
-
-Inside `lineNum`, `charPos`, and an expression `searchText`, a `position` object is available with `position.start.line`, `position.start.character`, `position.end.line`, `position.end.character` — the 1-based line/character of the match's start and end.
-
-### `searchTextIsExpression`
-
-By default `searchText` is a literal string, built the same way as `filePath` (capture groups substituted as raw text). Set `searchTextIsExpression: true` to evaluate it as a JS expression instead — capture groups are still referenced as `$1`, `$2`, ..., but are spliced in as safe, quoted string values (via `JSON.stringify`) rather than raw text, so they can't break the expression's syntax:
+`lineNum` and `charPos` are converted to numbers after expansion.
 
 ```jsonc
 {
-  "pattern": "file:///?(\\.[^#]+)#:~:text=([^,\\s]+)",
-  "filePath": "$1",
-  "searchText": "decodeURIComponent($2)",
-  "searchTextIsExpression": true
-}
+  "pattern": "(?:^|(?<=[\\s()]))(?<file>\\./[^\\s]+)#:~:text=(?:[a-zA-Z0-9_.!~*'()\\-%]+-,)?(?<text>[^,\\s&]+)",
+  "filePath": "${match.groups['file']}",
+  "searchText": "${decodeURIComponent(match.groups['text'])}",
+  "rangeGroup": "$0",
+},
 ```
+
+Captured text is inserted before interpolation, so text containing `` ` ``, `\`, or `${` can break (or be evaluated as part of) the template; reference it as `match[n]` inside `${...}` when that matters.
+
+Step 2 is skipped for a rule with `disableInterpolation: true`, and for every rule in an [untrusted workspace](https://code.visualstudio.com/docs/editor/workspace-trust): only capture groups are substituted.
+
+## Variables
+
+Inside `${...}` in a template:
+
+* `match` — the regex match array: `match[0]` is the whole match, `match[1]`, ... the capture groups
+* `position` — `position.start.line`, `position.start.character`, `position.end.line`, `position.end.character`: the 1-based line/character of the match's start and end
+* `fileDirname`, `fileBasename`, `fileBasenameNoExtension`, `fileExtname` — derived from the current file
+* `workspaceFolder`, `workspaceFolderBasename`, `fileWorkspaceFolder`, `relativeFile`, `relativeFileDirname`
+* `env` — environment variables, e.g. `${env.HOME}`
+* `workspaceFolderOf(name)` — a specific workspace folder in a multi-root workspace, by name, `"[index]"`, or a path suffix, e.g. `${workspaceFolderOf("server")}/src/$1`
 
 ## Examples
 
@@ -98,6 +105,20 @@ The second rule's `filePath` starts with `/`, so it resolves against [`fileroot`
 ```
 
 No `languageIds`, so this applies no matter which file you write it in.
+
+### Compute the line number: RFC 5147 `file.txt#line=41`
+
+[RFC 5147](https://datatracker.ietf.org/doc/html/rfc5147) fragment identifiers count lines from 0, so add 1 inside `${...}`:
+
+```jsonc
+"custom-document-link-rules.rules": [
+  {
+    "pattern": "(?:^|(?<=[\\s()]))(\\./[^\\s]+\\.txt)#line=(\\d+)",
+    "filePath": "$1",
+    "lineNum": "${Number($2) + 1}"
+  }
+]
+```
 
 ### Jump to matching text instead of a line number
 

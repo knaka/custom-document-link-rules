@@ -3,7 +3,7 @@
   "publisher": "ayutaya",
   "displayName": "Custom Document Link Rules",
   "description": "Turn text matched by your own regular expressions into clickable Document Links, for any language.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "repository": "https://github.com/knaka/custom-document-link-rules",
   "engines": {
     "vscode": "^1.138.0"
@@ -22,6 +22,12 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Rule templates ('filePath', 'lineNum', 'charPos', 'searchText') are not interpolated as JavaScript template literals in untrusted workspaces; only capture groups are substituted."
+    }
+  },
   "contributes": {
     "commands": [
       {
@@ -51,24 +57,20 @@
               },
               "filePath": {
                 "type": "string",
-                "description": "Construct the linked file path, use any capture group from 'find' regex. Use \"/\" as first character to signal that file path is relative to a fileroot path",
+                "description": "Construct the linked file path, use any capture group from 'pattern' regex. Use \"/\" as first character to signal that file path is relative to a fileroot path. Interpolated as a JavaScript template literal (e.g. '${match[1]}', '${workspaceFolder}') after capture groups ($1, ...) are substituted. Not interpolated in untrusted workspaces.",
                 "default": "$1"
               },
               "lineNum": {
                 "type": "string",
-                "description": "To which line number do you want to jump, use any capture group from 'find' regex and/or an expression using the current match position. No default"
+                "description": "To which line number do you want to jump, use any capture group from 'pattern' regex and/or '${...}' expressions using the current match position. No default. Interpolated as a JavaScript template literal (e.g. '${match[1]}', '${workspaceFolder}') after capture groups ($1, ...) are substituted. Not interpolated in untrusted workspaces."
               },
               "searchText": {
                 "type": "string",
-                "description": "To which line do you want to jump, search for the literal string, use any capture group from 'find' regex. No default"
-              },
-              "searchTextIsExpression": {
-                "type": "boolean",
-                "description": "Evaluate 'searchText' as a JavaScript Expression, capture groups from 'find' regex are available as $1, ... and/or use the current match position. default: false"
+                "description": "Jump to the first occurrence of this text in the target file, use any capture group from 'pattern' regex. No default. Interpolated as a JavaScript template literal (e.g. '${match[1]}', '${workspaceFolder}') after capture groups ($1, ...) are substituted. Not interpolated in untrusted workspaces."
               },
               "charPos": {
                 "type": "string",
-                "description": "To which character position do you want to jump, use any capture group from 'find' regex and/or an expression using the current match position. Only used when 'lineNum' is defined. No default"
+                "description": "To which character position do you want to jump, use any capture group from 'pattern' regex and/or '${...}' expressions using the current match position. Only used when 'lineNum' is defined. No default. Interpolated as a JavaScript template literal (e.g. '${match[1]}', '${workspaceFolder}') after capture groups ($1, ...) are substituted. Not interpolated in untrusted workspaces."
               },
               "rangeGroup": {
                 "type": "string",
@@ -85,6 +87,10 @@
               "allowCurrentFile": {
                 "type": "boolean",
                 "description": "Is a link to the current file allowed. default: false"
+              },
+              "disableInterpolation": {
+                "type": "boolean",
+                "description": "Only substitute capture groups ($1, ...) in 'filePath', 'lineNum', 'charPos', and 'searchText'; do not interpolate them as JavaScript template literals. default: false"
               },
               "languageIds": {
                 "type": [

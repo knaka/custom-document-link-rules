@@ -12,10 +12,10 @@ interface RuleConfig {
   lineNum?: string;
   charPos?: string;
   searchText?: string;
-  searchTextIsExpression?: boolean;
   rangeGroup?: string;
   documentLink?: boolean;
   allowCurrentFile?: boolean;
+  disableInterpolation?: boolean;
   languageIds?: string[] | null;
 }
 
@@ -30,10 +30,10 @@ interface Rule {
   lineNum?: string;
   charPos?: string;
   searchText?: string;
-  searchTextIsExpression: boolean;
   rangeGroup?: string;
   documentLink: boolean;
   allowCurrentFile: boolean;
+  disableInterpolation: boolean;
   languageIds: string[] | null;
 }
 
@@ -58,18 +58,26 @@ function offsetToPosition(document: vscode.TextDocument, offset: number): { line
   return { line: position.line + 1, character: position.character + 1 };
 }
 
-// A rule's `lineNum`/`charPos`/`searchText` (when `searchTextIsExpression`) are
-// small JavaScript expressions evaluated against the match `position`.
-// `Function` is the only way to turn user-provided settings text into a
-// callable expression at runtime.
-function getExpressionFunction(expr: string): ((position: PositionInfo) => unknown) | undefined {
+// A rule's `filePath`/`lineNum`/`charPos`/`searchText` are interpolated as the
+// body of a JavaScript template literal, with `variables` in scope. `Function`
+// is the only way to evaluate user-provided settings text at runtime, so it is
+// skipped in untrusted workspaces. `String.raw` keeps backslashes (e.g. in
+// Windows paths) as-is.
+function interpolate(template: string, variables: Record<string, unknown>): string | undefined {
+  if (!vscode.workspace.isTrusted) {
+    return template;
+  }
+  let fn: (...values: unknown[]) => unknown;
   try {
-    const factory = Function(`"use strict"; return (function calcexpr(position) {
-      return (${expr});
-    });`) as () => (position: PositionInfo) => unknown;
-    return factory();
+    fn = Function(...Object.keys(variables), `"use strict"; return String.raw\`${template}\`;`) as typeof fn;
   } catch {
-    vscode.window.showErrorMessage(`${extensionName}: incomplete expression: ${expr}`);
+    vscode.window.showErrorMessage(`${extensionName}: incomplete template: ${template}`);
+    return undefined;
+  }
+  try {
+    return String(fn(...Object.values(variables)));
+  } catch (e) {
+    vscode.window.showErrorMessage(`${extensionName}: failed to interpolate template: ${template}: ${e}`);
     return undefined;
   }
 }
@@ -98,9 +106,9 @@ function toRule(item: string | RuleConfig): Rule {
       pattern: item,
       filePath: '$1',
       isAbsolutePath: false,
-      searchTextIsExpression: false,
       documentLink: true,
       allowCurrentFile: false,
+      disableInterpolation: false,
       languageIds: null,
     };
   }
@@ -117,10 +125,10 @@ function toRule(item: string | RuleConfig): Rule {
     lineNum: item.lineNum,
     charPos: item.charPos,
     searchText: item.searchText,
-    searchTextIsExpression: item.searchTextIsExpression ?? false,
     rangeGroup,
     documentLink: item.documentLink ?? true,
     allowCurrentFile: item.allowCurrentFile ?? false,
+    disableInterpolation: item.disableInterpolation ?? false,
     languageIds: item.languageIds ?? null,
   };
 }
@@ -153,47 +161,35 @@ class CustomDocumentLink extends vscode.DocumentLink {
   }
 }
 
-function substituteVariable(text: string, value: string, variableName: string): string {
-  return text.replace(new RegExp(`\\$\\{${variableName}\\}`, 'g'), value);
-}
-
-function substituteVariables(text: string, document: vscode.TextDocument): string {
-  text = text.replace(/\$\{env:([^}]+)\}/g, (_m, name: string) => process.env[name] ?? 'Unknown');
-  text = text.replace(/\$\{workspaceFolder:(.+?)\}/g, (_m, name: string) => {
-    const wsf = getNamedWorkspaceFolder(name);
-    return wsf ? wsf.uri.fsPath : 'Unknown';
-  });
-  let documentWorkspace: vscode.WorkspaceFolder | undefined;
-  let fileDirname: string | undefined;
-  documentWorkspace = vscode.workspace.getWorkspaceFolder(document.uri);
+// Variables available to every interpolated template in a document, in
+// addition to the per-match `match` and `position`.
+function documentVariables(document: vscode.TextDocument): Record<string, unknown> {
   const file = document.fileName;
-  fileDirname = path.dirname(file);
+  const fileDirname = path.dirname(file);
   const fileBasename = path.basename(file);
   const fileExtname = path.extname(file);
-  const fileBasenameNoExtension = fileBasename.slice(0, fileBasename.length - fileExtname.length);
-  text = substituteVariable(text, fileDirname, 'fileDirname');
-  text = substituteVariable(text, fileBasename, 'fileBasename');
-  text = substituteVariable(text, fileBasenameNoExtension, 'fileBasenameNoExtension');
-  text = substituteVariable(text, fileExtname, 'fileExtname');
-  if (text.includes('${')) {
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    const workspace = folders.length === 1 ? folders[0] : documentWorkspace;
-    if (!workspace) {
-      vscode.window.showErrorMessage(`${extensionName}: use a named \${workspaceFolder:name} variable in a multi-root workspace`);
-      return text;
-    }
+  const variables: Record<string, unknown> = {
+    fileDirname,
+    fileBasename,
+    fileBasenameNoExtension: fileBasename.slice(0, fileBasename.length - fileExtname.length),
+    fileExtname,
+    env: process.env,
+    workspaceFolderOf: (name: string) => getNamedWorkspaceFolder(name)?.uri.fsPath,
+  };
+  const documentWorkspace = vscode.workspace.getWorkspaceFolder(document.uri);
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  const workspace = folders.length === 1 ? folders[0] : documentWorkspace;
+  if (workspace) {
     const workspaceFolder = workspace.uri.fsPath;
-    text = substituteVariable(text, workspaceFolder, 'workspaceFolder');
-    text = substituteVariable(text, path.basename(workspaceFolder), 'workspaceFolderBasename');
-    if (documentWorkspace && document) {
-      const relativeFile = document.fileName.substring(workspaceFolder.length + 1);
-      const relativeFileDirname = (fileDirname ?? '').substring(workspaceFolder.length + 1);
-      text = substituteVariable(text, workspaceFolder, 'fileWorkspaceFolder');
-      text = substituteVariable(text, relativeFile, 'relativeFile');
-      text = substituteVariable(text, relativeFileDirname, 'relativeFileDirname');
+    variables.workspaceFolder = workspaceFolder;
+    variables.workspaceFolderBasename = path.basename(workspaceFolder);
+    if (documentWorkspace) {
+      variables.fileWorkspaceFolder = workspaceFolder;
+      variables.relativeFile = file.substring(workspaceFolder.length + 1);
+      variables.relativeFileDirname = fileDirname.substring(workspaceFolder.length + 1);
     }
   }
-  return text;
+  return variables;
 }
 
 // Find links in a document.
@@ -220,6 +216,7 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
     }
   }
   const docText = document.getText();
+  const docVariables = documentVariables(document);
   const links: MatchedLink[] = [];
   for (const rule of rules) {
     const patternRE = new RegExp(rule.pattern, 'gmi');
@@ -232,9 +229,19 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
       if (match.length <= 1) {
         continue;
       }
-      let filePath = match[0].replace(replaceRE, rule.filePath);
-      filePath = substituteVariables(filePath, document);
-      if (filePath.length === 0) { continue; }
+      const position: PositionInfo = {
+        start: offsetToPosition(document, match.index),
+        end: offsetToPosition(document, patternRE.lastIndex),
+      };
+      const variables = { ...docVariables, match, position };
+      // Capture groups are substituted as `$n` first, then the result is interpolated.
+      const expand = (template: string | undefined): string | undefined => {
+        if (!template) {return undefined;}
+        const text = match[0].replace(replaceRE, template);
+        return rule.disableInterpolation ? text : interpolate(text, variables);
+      };
+      let filePath = expand(rule.filePath);
+      if (!filePath) { continue; }
       if (filePath === '/') {filePath = '/__root__';}
       let linkPath = filePath;
       if (!rule.isAbsolutePath) {
@@ -259,29 +266,13 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
         }
       }
       const pathRange = new vscode.Range(document.positionAt(filePos), document.positionAt(filePosEnd));
-      const position: PositionInfo = {
-        start: offsetToPosition(document, match.index),
-        end: offsetToPosition(document, patternRE.lastIndex),
-      };
-      const getNumber = (expr: string | undefined): number | undefined => {
-        if (!expr) {return undefined;}
-        const fn = getExpressionFunction(match[0].replace(replaceRE, expr));
-        return fn ? Number(fn(position)) : undefined;
+      const getNumber = (template: string | undefined): number | undefined => {
+        const text = expand(template);
+        return text ? Number(text) : undefined;
       };
       const lineNum = getNumber(rule.lineNum);
       const charPos = getNumber(rule.charPos);
-      let searchText = rule.searchText;
-      if (searchText) {
-        if (rule.searchTextIsExpression) {
-          // Capture groups are spliced in via JSON.stringify so they always land as safe
-          // JS string literals, not raw text that could break the expression's syntax.
-          const expr = searchText.replace(/\$(\d+)/g, (_m, n) => JSON.stringify(match[Number(n)] ?? ''));
-          const fn = getExpressionFunction(expr);
-          searchText = fn ? String(fn(position)) : undefined;
-        } else {
-          searchText = match[0].replace(replaceRE, searchText);
-        }
-      }
+      const searchText = expand(rule.searchText);
       links.push({ linkPath, lineNum, charPos, searchText, pathRange, fullRange });
     }
   }
