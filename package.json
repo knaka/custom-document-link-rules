@@ -29,13 +29,6 @@
     }
   },
   "contributes": {
-    "commands": [
-      {
-        "command": "customDocumentLinkRules.openFile",
-        "title": "Open File on Line and Char position",
-        "category": "Custom Document Link Rules"
-      }
-    ],
     "configuration": {
       "title": "Custom Document Link Rules",
       "properties": {
