@@ -39,6 +39,19 @@ task_patchver__bump() {
   npm version patch --no-git-tag-version
 }
 
+# Tag HEAD as v<version> from package.json and push the tag to origin. Run it after committing the version bump and its changelog entry.
+task_version__tag() {
+  if test -n "$(git status --porcelain)"
+  then
+    echo "The working tree has uncommitted changes" >&2
+    return 1
+  fi
+  local version
+  version="$(jq -r .version "$PROJECT_DIR"/package.json)"
+  git tag "v$version"
+  git push origin "v$version"
+}
+
 # Prepend the changes since the latest tag to CHANGELOG.md as the release of the version in package.json. Run it after bumping the version and before tagging, then edit the entries by hand.
 task_changelog__update() {
   local changelog="$PROJECT_DIR"/CHANGELOG.md

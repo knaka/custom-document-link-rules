@@ -84,6 +84,18 @@ set -o nounset -o errexit -o pipefail
 TAIL_DEPTH=1 task_patchver__bump "$@"
 '''
 
+[tasks."version:tag"]
+description='''Tag HEAD as v<version> from package.json and push the tag to origin. Run it after committing the version bump and its changelog entry.'''
+run='''
+#!/usr/bin/env bash
+# .mise/tasks.bash:task_version__tag
+pushd "$MISE_PROJECT_ROOT"/".mise" >/dev/null || exit 1
+. ./"tasks.bash"
+popd >/dev/null || exit 1
+set -o nounset -o errexit -o pipefail
+TAIL_DEPTH=1 task_version__tag "$@"
+'''
+
 [tasks."changelog:update"]
 description='''Prepend the changes since the latest tag to CHANGELOG.md as the release of the version in package.json. Run it after bumping the version and before tagging, then edit the entries by hand.'''
 run='''
