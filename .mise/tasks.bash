@@ -34,6 +34,11 @@ task_publish() {
   vsce publish
 }
 
+# Bump the patch version (x.y.Z) in package.json and package-lock.json, without committing or tagging.
+task_patchver__bump() {
+  npm version patch --no-git-tag-version
+}
+
 # Prepend the changes since the latest tag to CHANGELOG.md as the release of the version in package.json. Run it after bumping the version and before tagging, then edit the entries by hand.
 task_changelog__update() {
   local changelog="$PROJECT_DIR"/CHANGELOG.md
