@@ -175,6 +175,15 @@ class CustomDocumentLink extends vscode.DocumentLink {
     this.searchText = match.searchText;
     this.lineNum = match.lineNum;
     this.charPos = match.charPos;
+    // VS Code appends the modifier hint, e.g. " (cmd + click)".
+    let tooltip = vscode.workspace.asRelativePath(match.linkPath);
+    if (match.searchText) {
+      tooltip += ` "${match.searchText}"`;
+    } else if (match.lineNum) {
+      tooltip += `:${match.lineNum}`;
+      if (match.charPos) {tooltip += `:${match.charPos}`;}
+    }
+    this.tooltip = tooltip;
   }
 }
 
