@@ -53,6 +53,23 @@ function getCaptureGroupNum(text: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
+// Substitute `$n`, `$<name>`, `$&` and `$$` in `template` with the captures of
+// `match`, as String.prototype.replace() does. Re-running the pattern on
+// match[0] instead would fail for patterns with lookarounds or anchors, which
+// depend on text outside the match.
+function substituteCaptures(template: string, match: RegExpExecArray): string {
+  return template.replace(/\$(?:(\$)|(&)|(\d+)|<([^>]*)>)/g, (whole, dollar, amp, num, name) => {
+    if (dollar) {return '$';}
+    if (amp) {return match[0];}
+    if (num !== undefined) {
+      const n = Number(num);
+      return n < match.length ? (match[n] ?? '') : whole;
+    }
+    if (match.groups && name in match.groups) {return match.groups[name] ?? '';}
+    return whole;
+  });
+}
+
 function offsetToPosition(document: vscode.TextDocument, offset: number): { line: number; character: number } {
   const position = document.positionAt(offset);
   return { line: position.line + 1, character: position.character + 1 };
@@ -220,8 +237,6 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
   const links: MatchedLink[] = [];
   for (const rule of rules) {
     const patternRE = new RegExp(rule.pattern, 'gmi');
-    // separate copy: replace() resets lastIndex
-    const replaceRE = new RegExp(rule.pattern, 'mi');
     let optMatch: RegExpExecArray | null;
     while ((optMatch = patternRE.exec(docText)) !== null) {
       const match = optMatch;
@@ -237,7 +252,7 @@ function findCustomDocumentLinks(document: vscode.TextDocument): CustomDocumentL
       // Capture groups are substituted as `$n` first, then the result is interpolated.
       const expand = (template: string | undefined): string | undefined => {
         if (!template) {return undefined;}
-        const text = match[0].replace(replaceRE, template);
+        const text = substituteCaptures(template, match);
         return rule.disableInterpolation ? text : interpolate(text, variables);
       };
       let filePath = expand(rule.filePath);
