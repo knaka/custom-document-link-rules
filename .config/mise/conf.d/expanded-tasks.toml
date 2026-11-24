@@ -71,3 +71,15 @@ popd >/dev/null || exit 1
 set -o nounset -o errexit -o pipefail
 TAIL_DEPTH=1 task_publish "$@"
 '''
+
+[tasks."changelog:update"]
+description='''Prepend the changes since the latest tag to CHANGELOG.md as the release of the version in package.json. Run it after bumping the version and before tagging, then edit the entries by hand.'''
+run='''
+#!/usr/bin/env bash
+# .mise/tasks.bash:task_changelog__update
+pushd "$MISE_PROJECT_ROOT"/".mise" >/dev/null || exit 1
+. ./"tasks.bash"
+popd >/dev/null || exit 1
+set -o nounset -o errexit -o pipefail
+TAIL_DEPTH=1 task_changelog__update "$@"
+'''

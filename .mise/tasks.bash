@@ -33,3 +33,22 @@ task_whoami() {
 task_publish() {
   vsce publish
 }
+
+# Prepend the changes since the latest tag to CHANGELOG.md as the release of the version in package.json. Run it after bumping the version and before tagging, then edit the entries by hand.
+task_changelog__update() {
+  local changelog="$PROJECT_DIR"/CHANGELOG.md
+  local version
+  version="$(jq -r .version "$PROJECT_DIR"/package.json)"
+  if grep -q "^## $version " "$changelog"
+  then
+    echo "CHANGELOG.md already has an entry for $version" >&2
+    return 1
+  fi
+  # Without this, a release with no user-facing commits would get an empty heading.
+  if ! git-cliff --unreleased --context | jq -e 'any(.[]; .commits | length > 0)' >/dev/null
+  then
+    echo "No unreleased user-facing changes to add" >&2
+    return 1
+  fi
+  git-cliff --unreleased --tag "v$version" --prepend "$changelog"
+}
