@@ -1,3 +1,9 @@
+## 0.0.8 - 2026-11-24
+
+### Added
+
+- Show the link target as the link tooltip
+
 ## 0.0.7 - 2026-11-24
 
 ### Added
